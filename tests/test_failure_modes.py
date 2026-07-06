@@ -1,6 +1,7 @@
 """Each test names a failure mode of naive agent-messaging designs and
 proves this design kills it. This file is the point of the project."""
 
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -254,7 +255,19 @@ def test_hard_killed_waiter_process_loses_nothing(tmp_path):
         if proc.poll() is None:  # pragma: no cover
             proc.kill()
 
-    survivor = MessageBus(db)
+    # Windows releases a hard-killed process's WAL file locks
+    # asynchronously, so the survivor's open can transiently fail with
+    # "disk I/O error". The brief retry is part of the scenario -- the
+    # lock release is OS cleanup in progress, not data loss.
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            survivor = MessageBus(db)
+            break
+        except sqlite3.OperationalError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.2)
     survivor.post("jobs", "job-1", sender="dispatcher")
     assert [m.body for m in survivor.catch_up("worker")] == ["job-1"]
     survivor.close()
