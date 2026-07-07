@@ -106,6 +106,18 @@ def test_bus_close_unblocks_live_waiter():
     assert result["event"] is None
 
 
+def test_post_or_subscribe_after_close_raises_actionable_error():
+    """Using the bus after close() is a documented caller error, so it
+    surfaces a clear RuntimeError, not the SQLite driver's closed-database
+    message leaking through."""
+    bus = MessageBus()
+    bus.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        bus.post("ch", "x", sender="s")
+    with pytest.raises(RuntimeError, match="closed"):
+        bus.subscribe("w", "ch")
+
+
 def test_match_filter_skips_but_does_not_lose(bus):
     bus.subscribe("w", "ch")
     bell = Doorbell(bus, "w", match=lambda m: "urgent" in m.body)
