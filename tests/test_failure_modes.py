@@ -242,18 +242,18 @@ def test_hard_killed_waiter_process_loses_nothing(tmp_path):
         "print('armed', flush=True)\n"
         "bell.wait(timeout=30)\n"
     )
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         [sys.executable, "-c", child_code, db],
         stdout=subprocess.PIPE,
         text=True,
-    )
-    try:
-        assert proc.stdout.readline().strip() == "armed"
-        proc.kill()
-        proc.wait(timeout=10)
-    finally:
-        if proc.poll() is None:  # pragma: no cover
+    ) as proc:
+        try:
+            assert proc.stdout.readline().strip() == "armed"
             proc.kill()
+            proc.wait(timeout=10)
+        finally:
+            if proc.poll() is None:  # pragma: no cover
+                proc.kill()
 
     # Windows releases a hard-killed process's WAL file locks
     # asynchronously, so the survivor's open can transiently fail with

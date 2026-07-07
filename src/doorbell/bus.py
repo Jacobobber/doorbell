@@ -35,6 +35,12 @@ class MessageBus:
     def closed(self) -> bool:
         return self._closed.is_set()
 
+    def _require_open(self) -> None:
+        if self._closed.is_set():
+            raise RuntimeError(
+                "MessageBus is closed; create a new MessageBus to post or subscribe"
+            )
+
     def close(self) -> None:
         """Close the bus. Live doorbells wake and return None; arming new
         ones (or posting) after close is a caller error."""
@@ -51,12 +57,14 @@ class MessageBus:
         sender: str,
         idempotency_key: str | None = None,
     ) -> Message:
+        self._require_open()
         msg = self.store.post(channel, sender, body, idempotency_key=idempotency_key)
         with self.activity:
             self.activity.notify_all()
         return msg
 
     def subscribe(self, handle: str, channel: str, *, at: str = "head") -> None:
+        self._require_open()
         self.store.subscribe(handle, channel, at=at)
 
     def catch_up(self, handle: str, *, page_size: int = 100) -> list[Message]:
@@ -68,6 +76,10 @@ class MessageBus:
         (channels sorted by name). That is a deliberate simplicity trade:
         a handle that may accumulate very deep backlogs should page
         ``store.messages_after`` directly and ack incrementally instead.
+
+        A handle with no subscriptions (including a never-subscribed or
+        misspelled one) has nothing to deliver and returns ``[]``; it is not
+        an error, so a typo reads as "fully caught up".
         """
         out: list[Message] = []
         for channel in self.store.subscriptions(handle):
