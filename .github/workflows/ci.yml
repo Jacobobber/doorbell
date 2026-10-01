@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: false
-      - run: uv run --with ruff ruff check .
+      - run: uv run --with "ruff>=0.12,<0.13" ruff check .
       - run: uv run --with mypy mypy --strict src
 
   test:
